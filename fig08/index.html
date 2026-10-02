@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fig. 8 — Watch one CycleGAN translation</title>
+  <style>
+    :root {
+      --U: #0072B2; --UL: #E3F0F8; --D: #D55E00; --DL: #FCE4D6;
+      --N: #1F4E79; --C: #CC79A7; --CL: #F5E6EF;
+      --G: #E69F00; --MUTE: #6B6B6B; --INK: #111111; --LINE: #C9CED6;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #fff; color: var(--INK);
+      font-family: "Times New Roman", Times, serif; }
+    .page { max-width: 1040px; margin: 0 auto; padding: 14px 14px 24px; }
+    h1 { margin: 0 0 4px; font-size: 1.2rem; color: var(--N); }
+    .sub { margin: 0 0 12px; color: var(--MUTE); font-size: 0.82rem; font-style: italic; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 250px;
+      gap: 12px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .theater {
+      position: relative; border: 1px solid var(--LINE); border-radius: 12px;
+      background: #fff; overflow: hidden; aspect-ratio: 16 / 10; min-height: 400px;
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+    .hud {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(transparent, rgba(255,255,255,.98) 22%);
+      padding: 36px 14px 10px; pointer-events: none;
+    }
+    .hud .badge {
+      display: inline-block; background: var(--N); color: #fff;
+      font-size: 0.7rem; border-radius: 999px; padding: 2px 9px; margin-right: 8px;
+    }
+    .hud .title { font-size: 1rem; font-weight: 700; color: var(--N); margin: 4px 0 4px; }
+    .hud .body { font-size: 0.84rem; line-height: 1.4; max-width: 920px; }
+    .hud .see, .hud .mean {
+      display: block; margin-top: 3px;
+    }
+    .hud .see strong, .hud .mean strong { color: var(--N); }
+    .bar {
+      position: absolute; left: 12px; right: 12px; top: 10px; height: 4px;
+      background: #ececec; border-radius: 99px; overflow: hidden;
+    }
+    .bar > i { display: block; height: 100%; width: 0; background: var(--N); }
+
+    .guide {
+      border: 1px solid var(--LINE);
+      border-radius: 12px;
+      padding: 10px 10px 12px;
+      background: #fff;
+    }
+    .guide h2 {
+      margin: 0 0 8px;
+      font-size: 0.88rem;
+      color: var(--N);
+    }
+    .guide ol {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .guide li {
+      border: 1px solid var(--LINE);
+      border-radius: 8px;
+      padding: 7px 8px;
+      cursor: pointer;
+      font-size: 0.74rem;
+      line-height: 1.25;
+      color: var(--MUTE);
+      transition: border-color .2s, background .2s, color .2s;
+    }
+    .guide li .n {
+      display: inline-block;
+      min-width: 1.2em;
+      font-weight: 700;
+      color: var(--N);
+      margin-right: 4px;
+    }
+    .guide li .t { color: var(--INK); font-weight: 700; display: block; margin-bottom: 2px; }
+    .guide li.active {
+      border-color: var(--N);
+      background: #E8EEF5;
+      color: var(--INK);
+    }
+    .guide li.active .n { color: var(--N); }
+    .guide .howto {
+      margin: 10px 2px 0;
+      font-size: 0.72rem;
+      color: var(--MUTE);
+      font-style: italic;
+      line-height: 1.35;
+    }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+    button {
+      font-family: inherit; font-size: 0.86rem; cursor: pointer;
+      border: 1.2px solid var(--N); background: #fff; color: var(--N);
+      border-radius: 7px; padding: 7px 13px;
+    }
+    button.main { background: var(--N); color: #fff; }
+    .src {
+      margin-top: 10px; font-size: 0.72rem; color: var(--MUTE); line-height: 1.4;
+    }
+  </style>
+  <script src="signals.js"></script>
+</head>
+<body>
+  <div class="page">
+    <h1>Figure 8 — Watch what happens in one CycleGAN pass</h1>
+    <p class="sub">Step-by-step guide with real acceleration traces from the study · local pilot</p>
+
+    <div class="layout">
+      <div>
+        <div class="theater" id="theater">
+          <div class="bar"><i id="prog"></i></div>
+          <canvas id="cv"></canvas>
+          <div class="hud">
+            <span class="badge" id="badge">Step 1 / 8</span>
+            <div class="title" id="title">…</div>
+            <div class="body" id="body">…</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="main" id="play">Play</button>
+          <button id="pause">Pause</button>
+          <button id="back">◀ Prev step</button>
+          <button id="next">Next step ▶</button>
+          <button id="restart">Restart</button>
+        </div>
+      </div>
+
+      <aside class="guide" id="guide">
+        <h2>Step-by-step guide</h2>
+        <ol id="guideList"></ol>
+        <p class="howto">Click any step to jump there. Read “What you see” and “Why it matters” under the animation.</p>
+      </aside>
+    </div>
+
+    <p class="src" id="srcNote">
+      Checked against the article (Sections 3.4–3.5, Table 4, Figure 8) and the training code.
+      Step 1 uses Case 1 DATAfile1/3 for a clear U vs D comparison; Steps 2–8 use the Case 3 test batch
+      (channel 14, roof y) — the same real / CycleGAN traces shown in Figure 8. STFT is a separate loss,
+      not part of the critic. Score bars are schematic.
+    </p>
+  </div>
+
+<script>
+(() => {
+  if (!window.REAL_SIG) {
+    document.getElementById("title").textContent = "Could not load signals.js";
+    document.getElementById("body").textContent = "Open this folder via a local server or keep signals.js next to index.html.";
+    return;
+  }
+  const S = window.REAL_SIG;
+  const U = "#0072B2", UL = "#E3F0F8", D = "#D55E00", DL = "#FCE4D6";
+  const N = "#1F4E79", C = "#CC79A7", CL = "#F5E6EF", G = "#E69F00", MUTE = "#6B6B6B", INK = "#111";
+
+  const theater = document.getElementById("theater");
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, dpr = 1;
+
+  function resize() {
+    const r = theater.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = r.width; H = r.height;
+    cv.width = Math.floor(W * dpr);
+    cv.height = Math.floor(H * dpr);
+    cv.style.width = W + "px";
+    cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  function clamp(t, a = 0, b = 1) { return Math.max(a, Math.min(b, t)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function ease(t) { t = clamp(t); return t * t * (3 - 2 * t); }
+  function seg(t, a, b) { return ease(clamp((t - a) / Math.max(1e-9, b - a))); }
+
+  function morphArr(a, b, u) {
+    const n = Math.min(a.length, b.length);
+    const out = new Float64Array(n);
+    const s = u * u * (3 - 2 * u);
+    for (let i = 0; i < n; i++) out[i] = a[i] * (1 - s) + b[i] * s;
+    return out;
+  }
+
+  /** Draw a real acceleration array into a box (paper-figure style). */
+  function drawSignal(arr, x0, y0, w, h, color, lw = 1.15, alpha = 1, reveal = 1) {
+    if (!arr || !arr.length) return;
+    const n = arr.length;
+    const nShow = Math.max(2, Math.floor(n * clamp(reveal)));
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    let peak = 1e-12;
+    for (let i = 0; i < nShow; i++) peak = Math.max(peak, Math.abs(arr[i]));
+    for (let i = 0; i < nShow; i++) {
+      const x = x0 + (i / (n - 1)) * w;
+      const y = y0 - (arr[i] / peak) * (h * 0.46);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+  function card(x, y, w, h, fill, stroke, lw = 1.5) {
+    roundRect(x, y, w, h, 9);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke();
+  }
+  function label(text, x, y, color = INK, size = 13, align = "center", bold = false) {
+    ctx.fillStyle = color;
+    ctx.font = `${bold ? "700 " : ""}${size}px "Times New Roman", Times, serif`;
+    ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y);
+  }
+  function arrow(x1, y1, x2, y2, color, lw = 2, head = 8) {
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(ang - 0.4), y2 - head * Math.sin(ang - 0.4));
+    ctx.lineTo(x2 - head * Math.cos(ang + 0.4), y2 - head * Math.sin(ang + 0.4));
+    ctx.closePath(); ctx.fill();
+  }
+  function particle(x, y, color, r = 4) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill();
+  }
+  function meter(x, y, w, val, color, lab) {
+    card(x, y, w, 34, "#fff", "#ddd", 1);
+    ctx.fillStyle = "#eee";
+    roundRect(x + 8, y + 17, w - 16, 7, 3); ctx.fill();
+    ctx.fillStyle = color;
+    roundRect(x + 8, y + 17, (w - 16) * clamp(val), 7, 3); ctx.fill();
+    label(lab, x + w / 2, y + 9, MUTE, 10);
+  }
+
+  function layout() {
+    const hud = 96, pad = 16, top = 30;
+    return { pad, top, hud, midY: top + (H - hud - top) * 0.42, usableH: H - hud - top };
+  }
+
+  // signal aliases (paper-consistent)
+  const RH = S.real_healthy;   // Case3 ch14
+  const RD = S.real_damaged;
+  const FD = S.fake_damaged;   // G(u)
+  const FH = S.fake_healthy;   // F(d)
+  const H1 = S.case1_h;
+  const D1 = S.case1_d;
+
+  const scenes = [
+    {
+      dur: 4.2,
+      short: "Two domains",
+      title: "Step 1 — Two domains of the same building",
+      see: "Left (blue): real healthy acceleration (Case 1, channel 14, roof y). Right (orange): real Pattern 2 damaged acceleration, same sensor. These are dataset traces, not cartoons.",
+      mean: "The paper pools all damaged patterns into one domain D and keeps the healthy state as domain U. CycleGAN must learn maps between these two domains (G: U→D and F: D→U).",
+      draw(t, L) {
+        const y = L.midY;
+        const bw = W * 0.44, bh = 170;
+        card(L.pad, y - 85, bw, bh, UL, U, 2);
+        card(W - L.pad - bw, y - 85, bw, bh, DL, D, 2);
+        label("Domain U  ·  healthy (real)", L.pad + bw / 2, y - 68, U, 14, "center", true);
+        label("Domain D  ·  Pattern 2 (real)", W - L.pad - bw / 2, y - 68, D, 14, "center", true);
+        const rev = seg(t, 0.05, 0.85);
+        drawSignal(H1, L.pad + 16, y + 15, bw - 32, 88, U, 1.2, 1, rev);
+        drawSignal(D1, W - L.pad - bw + 16, y + 15, bw - 32, 88, D, 1.2, 1, rev);
+        label("0.4 s  ·  roof, y", L.pad + bw / 2, y + 70, MUTE, 11);
+        label("0.4 s  ·  roof, y", W - L.pad - bw / 2, y + 70, MUTE, 11);
+      }
+    },
+    {
+      dur: 6.0,
+      short: "Generator G",
+      title: "Step 2 — Generator G: undamaged → damaged (U→D)",
+      see: "Left: real healthy u from the Case 3 test batch (same source as Figure 8). It passes through G. Right: the saved CycleGAN output G(u). The travelling panel morphs between these two real traces.",
+      mean: "As in the article, G maps undamaged segments to the damaged domain. This is domain translation of the waveform, not time-series forecasting of the future.",
+      draw(t, L) {
+        const y = L.midY;
+        const x0 = L.pad + 70, xG = W * 0.48, x1 = W - L.pad - 70;
+        card(x0 - 70, y - 55, 140, 110, UL, U, 2);
+        label("real u", x0, y - 40, U, 13, "center", true);
+        drawSignal(RH, x0 - 58, y + 15, 116, 70, U, 1.1);
+
+        card(xG - 42, y - 38, 84, 76, D, D, 2);
+        label("G", xG, y - 8, "#fff", 22, "center", true);
+        label("U → D", xG, y + 18, "#fff", 11);
+
+        card(x1 - 70, y - 55, 140, 110, DL, D, 2);
+        label("G(u)  ·  CycleGAN", x1, y - 40, D, 12, "center", true);
+
+        const p = seg(t, 0.08, 0.88);
+        const morph = seg(t, 0.28, 0.78);
+        const xp = lerp(x0 + 70, x1 - 70, p);
+        const mid = morphArr(RH, FD, morph);
+        // travelling window of the real morphing signal
+        card(xp - 70, y + 70, 140, 72, "#fff", morph > 0.5 ? D : U, 1.2);
+        drawSignal(mid, xp - 58, y + 108, 116, 55, morph > 0.5 ? D : U, 1.15);
+        particle(xp, y, morph > 0.5 ? D : U, 5);
+        arrow(x0 + 70, y, xG - 44, y, U, 1.5);
+        arrow(xG + 44, y, x1 - 70, y, D, 1.5);
+
+        if (p > 0.9) drawSignal(FD, x1 - 58, y + 15, 116, 70, D, 1.1);
+        label("real Case 3 · ch 14 · first 0.4 s", W / 2, L.top + 6, MUTE, 11);
+      }
+    },
+    {
+      dur: 5.4,
+      short: "Critic C_D",
+      title: "Step 3 — Critic C_D (adversarial) and the separate STFT loss",
+      see: "Real damaged d and synthetic G(u) are compared in two ways: (1) critic C_D scores realism (pink; scores are schematic); (2) the gold STFT tag is a separate loss on magnitude and phase of the aligned pair — it does not go through the critic.",
+      mean: "Training uses WGAN-GP: the critic separates real from generated signals while generators are frozen. Independently, λ_freq=10 applies an STFT magnitude+phase L1 term on the seed-and-window-aligned pair (Table 4).",
+      draw(t, L) {
+        const y = L.midY - 30;
+        card(50, y - 70, 150, 115, DL, D, 2);
+        label("real d", 125, y - 52, D, 13, "center", true);
+        drawSignal(RD, 64, y + 10, 122, 70, D, 1.1);
+
+        card(W / 2 - 75, y - 70, 150, 115, DL, D, 1.5);
+        ctx.setLineDash([4, 3]);
+        roundRect(W / 2 - 75, y - 70, 150, 115, 9);
+        ctx.strokeStyle = D; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.setLineDash([]);
+        label("G(u)", W / 2, y - 52, D, 13, "center", true);
+        drawSignal(FD, W / 2 - 61, y + 10, 122, 70, D, 1.1);
+
+        // Separate STFT loss between the two signals (not through the critic)
+        const st = seg(t, 0.25, 0.95);
+        ctx.globalAlpha = 0.35 + 0.65 * st;
+        arrow(200, y - 10, W / 2 - 78, y - 10, G, 1.6);
+        arrow(W / 2 - 78, y + 10, 200, y + 10, G, 1.6);
+        card(W / 2 - 155, y - 18, 70, 36, "#FFF2CC", G, 1.5);
+        label("STFT loss", W / 2 - 120, y - 8, G, 11, "center", true);
+        label("separate", W / 2 - 120, y + 8, G, 10, "center");
+        ctx.globalAlpha = 1;
+
+        // Critic path (adversarial only)
+        const cx = W - 115, cy = y;
+        ctx.beginPath();
+        ctx.moveTo(cx - 34, cy - 46); ctx.lineTo(cx + 34, cy - 14);
+        ctx.lineTo(cx + 34, cy + 14); ctx.lineTo(cx - 34, cy + 46);
+        ctx.closePath();
+        ctx.fillStyle = CL; ctx.fill();
+        ctx.strokeStyle = C; ctx.lineWidth = 2; ctx.stroke();
+        label("C_D", cx, cy, C, 16, "center", true);
+        label("adversarial", cx, cy + 55, C, 11, "center");
+        arrow(W / 2 + 78, y, cx - 38, y, C, 1.7);
+
+        meter(55, y + 115, 135, 0.84, C, "score real d (schematic)");
+        meter(W / 2 - 65, y + 115, 135, lerp(0.2, 0.7, seg(t, 0.2, 0.95)), C, "score G(u) (schematic)");
+      }
+    },
+    {
+      dur: 5.5,
+      short: "Cycle via F",
+      title: "Step 4 — Cycle consistency: F(G(u)) ≈ u",
+      see: "G(u) is sent back through F. The animation morphs toward the original real healthy u to show the cycle target F(G(u)) ≈ u (Eq. cycle-consistency in the paper).",
+      mean: "Cycle consistency couples G and F so a translated record, when mapped back, returns near the original. Classic CycleGAN therefore does not need paired U/D labels for this term; in this study the loader still aligns pairs for the STFT term.",
+      draw(t, L) {
+        const y = L.midY;
+        const x0 = L.pad + 70, xF = W * 0.48, x1 = W - L.pad - 70;
+        card(x0 - 70, y - 55, 140, 110, DL, D, 2);
+        label("G(u)", x0, y - 40, D, 13, "center", true);
+        drawSignal(FD, x0 - 58, y + 15, 116, 70, D, 1.1);
+
+        card(xF - 42, y - 38, 84, 76, U, U, 2);
+        label("F", xF, y - 8, "#fff", 22, "center", true);
+        label("D → U", xF, y + 18, "#fff", 11);
+
+        card(x1 - 70, y - 55, 140, 110, UL, U, 2);
+        label("F(G(u)) ≈ u", x1, y - 40, U, 12, "center", true);
+
+        const p = seg(t, 0.08, 0.88);
+        const morph = seg(t, 0.28, 0.78);
+        const xp = lerp(x0 + 70, x1 - 70, p);
+        const mid = morphArr(FD, RH, morph); // back toward real healthy
+        card(xp - 70, y + 70, 140, 72, "#fff", morph > 0.5 ? U : D, 1.2);
+        drawSignal(mid, xp - 58, y + 108, 116, 55, morph > 0.5 ? U : D, 1.15);
+        particle(xp, y, morph > 0.5 ? U : D, 5);
+        if (p > 0.9) {
+          drawSignal(RH, x1 - 58, y + 15, 116, 70, U, 1.1);
+          ctx.globalAlpha = 0.35;
+          drawSignal(FH, x1 - 58, y + 15, 116, 70, U, 1.0); // faint fake-healthy ref if useful
+          ctx.globalAlpha = 1;
+        }
+      }
+    },
+    {
+      dur: 5.2,
+      short: "Other direction",
+      title: "Step 5 — The other direction: F: D→U and cycle back",
+      see: "Top: real damaged d through F → synthetic healthy F(d) (Case 3 batch). Bottom: that output returns through G toward the damaged shape (cycle G(F(d)) ≈ d).",
+      mean: "The article trains both directions together: F maps damaged to undamaged; critic C_U scores the undamaged domain. The reverse cycle is required in the same way as Step 4.",
+      draw(t, L) {
+        const y = L.midY;
+        const xL = L.pad + 90, xR = W - L.pad - 90;
+        card(xL - 70, y - 120, 140, 100, DL, D, 2);
+        label("real d", xL, y - 102, D, 12, "center", true);
+        drawSignal(RD, xL - 58, y - 55, 116, 60, D, 1.05);
+
+        card(W / 2 - 36, y - 130, 72, 56, U, U, 2);
+        label("F", W / 2, y - 102, "#fff", 18, "center", true);
+
+        card(xR - 70, y - 120, 140, 100, UL, U, 2);
+        label("F(d)", xR, y - 102, U, 12, "center", true);
+        const p = seg(t, 0.05, 0.7);
+        if (p > 0.55) drawSignal(FH, xR - 58, y - 55, 116, 60, U, 1.05);
+
+        // bottom return
+        card(xR - 70, y + 30, 140, 100, UL, U, 1.5);
+        label("F(d)", xR, y + 48, U, 12, "center", true);
+        if (p > 0.55) drawSignal(FH, xR - 58, y + 95, 116, 55, U, 1.0);
+
+        card(W / 2 - 36, y + 45, 72, 56, D, D, 2);
+        label("G", W / 2, y + 73, "#fff", 18, "center", true);
+
+        card(xL - 70, y + 30, 140, 100, DL, D, 2);
+        label("G(F(d)) ≈ d", xL, y + 48, D, 11, "center", true);
+        const q = seg(t, 0.4, 0.95);
+        if (q > 0.6) drawSignal(RD, xL - 58, y + 95, 116, 55, D, 1.0);
+
+        const topX = lerp(xL + 70, xR - 70, p);
+        particle(topX, y - 70 - 20 * Math.sin(Math.PI * p), p < 0.5 ? D : U, 5);
+        if (t > 0.4) {
+          const botX = lerp(xR - 70, xL + 70, q);
+          particle(botX, y + 80 + 20 * Math.sin(Math.PI * q), q < 0.5 ? U : D, 5);
+        }
+      }
+    },
+    {
+      dur: 5.0,
+      short: "5 critic updates",
+      title: "Step 6 — One iteration: five critic updates, then generators wait",
+      see: "A batch of 16 aligned (u, d) segments is shown (batch size = 16, Table 4). Critic steps 1→5 light up. Each step updates both C_U and C_D on that same batch.",
+      mean: "As in the article and code: critics are updated five times per generator update (λ_gp=10). Generators stay frozen during these five steps. 150 such iterations make one epoch (2400/16).",
+      draw(t, L) {
+        const y = L.midY;
+        label("batch · 16 aligned (u, d) windows", W / 2, L.top + 4, MUTE, 12);
+        for (let i = 0; i < 16; i++) {
+          const bx = W / 2 - 220 + (i % 8) * 56;
+          const by = y - 100 + Math.floor(i / 8) * 42;
+          const healthy = i % 2 === 0;
+          card(bx, by, 50, 34, healthy ? UL : DL, healthy ? U : D, 1);
+          drawSignal(healthy ? RH : RD, bx + 3, by + 20, 44, 22, healthy ? U : D, 0.7);
+        }
+        const nOn = Math.min(5, Math.floor(seg(t, 0.2, 0.9) * 5.999) + (t > 0.2 ? 1 : 0));
+        for (let i = 0; i < 5; i++) {
+          const x = W / 2 - 220 + i * 72;
+          const on = i < nOn;
+          card(x, y + 30, 60, 52, on ? C : CL, C, on ? 2 : 1.2);
+          label(String(i + 1), x + 30, y + 48, on ? "#fff" : C, 17, "center", true);
+          label("critic", x + 30, y + 66, on ? "#fff" : C, 10);
+        }
+        if (nOn > 0) arrow(W / 2, y - 10, W / 2 - 220 + (nOn - 1) * 72 + 30, y + 28, C, 1.5);
+      }
+    },
+    {
+      dur: 4.6,
+      short: "Generator update",
+      title: "Step 7 — One generator update with all four losses",
+      see: "After the five critic steps, G and F take one update. The four incoming terms are adversarial, cycle (λ_cyc=10), identity (λ_id=5; F(u)≈u and G(d)≈d), and STFT frequency (λ_freq=10).",
+      mean: "This matches Eq. (6) / Table 4: L_G = L_adv + 10 L_cyc + 5 L_id + 10 L_freq. Optimiser Adam (lr=1e-4, β1=0.5, β2=0.999), 500 epochs; best epoch = lowest validation MAE in domain D.",
+      draw(t, L) {
+        const y = L.midY;
+        card(W / 2 - 75, y - 42, 150, 84, N, N, 2);
+        label("G & F", W / 2, y - 12, "#fff", 22, "center", true);
+        label("one update", W / 2, y + 16, "#fff", 12);
+        const losses = [
+          { name: "𝓛_adv", col: C, ang: -0.55 },
+          { name: "𝓛_cyc", col: U, ang: -0.18 },
+          { name: "𝓛_id", col: N, ang: 0.18 },
+          { name: "𝓛_freq", col: G, ang: 0.55 }
+        ];
+        losses.forEach((Ls, i) => {
+          const a = seg(t, 0.05 + i * 0.07, 0.5 + i * 0.07);
+          const dist = lerp(155, 80, a);
+          const x = W / 2 + Math.sin(Ls.ang) * dist;
+          const yy = y - 8 - Math.cos(Ls.ang) * dist;
+          particle(x, yy, Ls.col, 5);
+          label(Ls.name, x, yy - 14, Ls.col, 12);
+        });
+        ctx.globalAlpha = seg(t, 0.55, 1);
+        label("𝓛_G = 𝓛_adv + 10 𝓛_cyc + 5 𝓛_id + 10 𝓛_freq", W / 2, y + 70, N, 14, "center", true);
+        // tiny real signals under
+        drawSignal(RH, W / 2 - 160, y + 110, 120, 36, U, 0.9);
+        drawSignal(FD, W / 2 + 40, y + 110, 120, 36, D, 0.9);
+        ctx.globalAlpha = 1;
+      }
+    },
+    {
+      dur: 4.4,
+      short: "Takeaway",
+      title: "Step 8 — What Figure 8 is teaching",
+      see: "Left: measured healthy u. Right: CycleGAN damaged G(u). Same Case 3, channel 14 traces used in the paper figure.",
+      mean: "Figure 8 explains the training flow only. The paper’s results later show strong amplitude/FID behaviour in Cases 3–4, while natural frequencies of the input tend to be kept — so this step does not claim a full modal redesign of the signal.",
+      draw(t, L) {
+        const y = L.midY;
+        const bw = W * 0.4;
+        card(L.pad + 10, y - 85, bw, 170, UL, U, 2);
+        card(W - L.pad - 10 - bw, y - 85, bw, 170, DL, D, 2);
+        label("measured healthy  u", L.pad + 10 + bw / 2, y - 68, U, 14, "center", true);
+        label("translated damaged  G(u)", W - L.pad - 10 - bw / 2, y - 68, D, 14, "center", true);
+        const rev = seg(t, 0.05, 0.9);
+        drawSignal(RH, L.pad + 26, y + 15, bw - 32, 95, U, 1.25, 1, rev);
+        drawSignal(FD, W - L.pad - bw + 6, y + 15, bw - 32, 95, D, 1.25, 1, rev);
+        ctx.globalAlpha = seg(t, 0.3, 1);
+        arrow(L.pad + 20 + bw, y, W - L.pad - 20 - bw, y, D, 2.4);
+        label("G", W / 2, y - 14, D, 16, "center", true);
+        ctx.globalAlpha = 1;
+      }
+    }
+  ];
+
+  let sceneIdx = 0, tLocal = 0, playing = true, last = performance.now();
+  const badge = document.getElementById("badge");
+  const title = document.getElementById("title");
+  const body = document.getElementById("body");
+  const prog = document.getElementById("prog");
+
+  const guideList = document.getElementById("guideList");
+  function buildGuide() {
+    if (!guideList) return;
+    guideList.innerHTML = "";
+    scenes.forEach((s, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = '<span class="n">' + (i + 1) + '.</span><span class="t">' + s.short + '</span>';
+      li.onclick = () => { playing = false; go(i); document.getElementById("play").textContent = "Play"; };
+      guideList.appendChild(li);
+    });
+  }
+  function syncGuide() {
+    if (!guideList) return;
+    [...guideList.children].forEach((li, i) => li.classList.toggle("active", i === sceneIdx));
+  }
+  function setHud() {
+    const s = scenes[sceneIdx];
+    badge.textContent = "Step " + (sceneIdx + 1) + " / " + scenes.length;
+    title.textContent = s.title;
+    body.innerHTML = '<span class="see"><strong>What you see:</strong> ' + s.see + '</span>' +
+      '<span class="mean"><strong>Why it matters:</strong> ' + s.mean + '</span>';
+    let done = 0;
+    for (let i = 0; i < sceneIdx; i++) done += scenes[i].dur;
+    done += tLocal;
+    const total = scenes.reduce((a, sc) => a + sc.dur, 0);
+    prog.style.width = (100 * done / total) + "%";
+    syncGuide();
+  }
+  buildGuide();
+
+  function go(i) {
+    sceneIdx = Math.max(0, Math.min(scenes.length - 1, i));
+    tLocal = 0; setHud();
+    document.getElementById("play").textContent = "Play";
+  }
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (playing) {
+      tLocal += dt;
+      if (tLocal >= scenes[sceneIdx].dur) {
+        if (sceneIdx < scenes.length - 1) { sceneIdx++; tLocal = 0; }
+        else { tLocal = scenes[sceneIdx].dur; playing = false; document.getElementById("play").textContent = "Replay"; }
+      }
+      setHud();
+    }
+    ctx.clearRect(0, 0, W, H);
+    const L = layout();
+    const s = scenes[sceneIdx];
+    s.draw(clamp(tLocal / s.dur), L);
+    requestAnimationFrame(frame);
+  }
+
+  document.getElementById("play").onclick = () => {
+    if (sceneIdx === scenes.length - 1 && tLocal >= scenes[sceneIdx].dur - 0.05) go(0);
+    playing = true; document.getElementById("play").textContent = "Playing…";
+  };
+  document.getElementById("pause").onclick = () => { playing = false; document.getElementById("play").textContent = "Play"; };
+  document.getElementById("back").onclick = () => { playing = false; go(sceneIdx - 1); };
+  document.getElementById("next").onclick = () => { playing = false; go(sceneIdx + 1); };
+  document.getElementById("restart").onclick = () => { go(0); playing = true; document.getElementById("play").textContent = "Playing…"; };
+
+  setHud();
+  document.getElementById("play").textContent = "Playing…";
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
