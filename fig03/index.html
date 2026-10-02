@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Fig. 3 — Overall workflow of the study</title>
+<style>
+:root {
+  --U:#0072B2; --UL:#E3F0F8; --D:#D55E00; --DL:#FCE4D6;
+  --N:#1F4E79; --C:#CC79A7; --CL:#F5E6EF; --G:#E69F00; --GL:#FFF2CC;
+  --MUTE:#6B6B6B; --INK:#111; --LINE:#C9CED6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--INK);font-family:"Times New Roman",Times,serif}
+.page{max-width:1040px;margin:0 auto;padding:14px}
+h1{margin:0 0 4px;font-size:1.15rem;color:var(--N)}
+.sub{margin:0 0 12px;color:var(--MUTE);font-size:.8rem;font-style:italic}
+.layout{display:grid;grid-template-columns:1fr 240px;gap:12px;align-items:start}
+@media(max-width:860px){.layout{grid-template-columns:1fr}}
+.theater{position:relative;border:1px solid var(--LINE);border-radius:12px;background:#fff;overflow:hidden;aspect-ratio:16/10;min-height:400px}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(255,255,255,.98) 24%);padding:34px 14px 10px;pointer-events:none}
+.badge{display:inline-block;background:var(--N);color:#fff;font-size:.7rem;border-radius:999px;padding:2px 9px;margin-right:8px}
+.title{font-size:.98rem;font-weight:700;color:var(--N);margin:4px 0}
+.body{font-size:.82rem;line-height:1.4}
+.see,.mean{display:block;margin-top:3px}
+.see strong,.mean strong{color:var(--N)}
+.bar{position:absolute;left:12px;right:12px;top:10px;height:4px;background:#ececec;border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--N)}
+.guide{border:1px solid var(--LINE);border-radius:12px;padding:10px;background:#fff}
+.guide h2{margin:0 0 8px;font-size:.86rem;color:var(--N)}
+.guide ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.guide li{border:1px solid var(--LINE);border-radius:8px;padding:7px 8px;cursor:pointer;font-size:.72rem;color:var(--MUTE);line-height:1.25}
+.guide li .t{display:block;font-weight:700;color:var(--INK);margin-bottom:2px}
+.guide li.active{border-color:var(--N);background:#E8EEF5;color:var(--INK)}
+.guide .howto{margin:10px 2px 0;font-size:.7rem;color:var(--MUTE);font-style:italic;line-height:1.35}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+button{font-family:inherit;font-size:.84rem;cursor:pointer;border:1.2px solid var(--N);background:#fff;color:var(--N);border-radius:7px;padding:7px 12px}
+button.main{background:var(--N);color:#fff}
+.src{margin-top:10px;font-size:.7rem;color:var(--MUTE);line-height:1.4}
+</style>
+<script src="signals.js"></script>
+</head>
+<body>
+<div class="page">
+  <h1>Figure 3 — Overall workflow of the study</h1>
+  <p class="sub">Animated companion to Figure 3 · matches Section 3.1</p>
+  <div class="layout">
+    <div>
+      <div class="theater" id="theater">
+        <div class="bar"><i id="prog"></i></div>
+        <canvas id="cv"></canvas>
+        <div class="hud">
+          <span class="badge" id="badge">Step 1</span>
+          <div class="title" id="title">…</div>
+          <div class="body" id="body">…</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="main" id="play">Play</button>
+        <button id="pause">Pause</button>
+        <button id="back">◀ Prev</button>
+        <button id="next">Next ▶</button>
+        <button id="restart">Restart</button>
+      </div>
+    </div>
+    <aside class="guide">
+      <h2>Step-by-step guide</h2>
+      <ol id="guideList"></ol>
+      <p class="howto">Click a step to jump. Read “What you see” and “Why it matters” under the animation.</p>
+    </aside>
+  </div>
+  <p class="src">Checked against Section 3.1 and the Figure 3 caption. Three stages only: Data (§3.2–3.3), Model (§3.4–3.5), Evaluation (§3.6).</p>
+</div>
+<script>
+
+function boot(scenes){
+  const theater=document.getElementById('theater');
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  let W=0,H=0,dpr=1;
+  function resize(){
+    const r=theater.getBoundingClientRect();
+    dpr=Math.min(devicePixelRatio||1,2);
+    W=r.width; H=r.height;
+    cv.width=Math.floor(W*dpr); cv.height=Math.floor(H*dpr);
+    cv.style.width=W+'px'; cv.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  addEventListener('resize',resize); resize();
+
+  const clamp=(t,a=0,b=1)=>Math.max(a,Math.min(b,t));
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const ease=t=>{t=clamp(t);return t*t*(3-2*t)};
+  const seg=(t,a,b)=>ease(clamp((t-a)/Math.max(1e-9,b-a)));
+
+  function roundRect(x,y,w,h,r){
+    const rr=Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+  function card(x,y,w,h,fill,stroke,lw=1.5){
+    roundRect(x,y,w,h,9); ctx.fillStyle=fill; ctx.fill();
+    ctx.strokeStyle=stroke; ctx.lineWidth=lw; ctx.stroke();
+  }
+  function label(text,x,y,color='#111',size=13,align='center',bold=false){
+    ctx.fillStyle=color;
+    ctx.font=`${bold?'700 ':''}${size}px "Times New Roman",Times,serif`;
+    ctx.textAlign=align; ctx.textBaseline='middle'; ctx.fillText(text,x,y);
+  }
+  function arrow(x1,y1,x2,y2,color,lw=2,head=8){
+    const ang=Math.atan2(y2-y1,x2-x1);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-head*Math.cos(ang-.4),y2-head*Math.sin(ang-.4));
+    ctx.lineTo(x2-head*Math.cos(ang+.4),y2-head*Math.sin(ang+.4));
+    ctx.closePath(); ctx.fill();
+  }
+  function drawSignal(arr,x0,y0,w,h,color,lw=1.1,alpha=1,reveal=1){
+    if(!arr||!arr.length) return;
+    const n=arr.length, nShow=Math.max(2,Math.floor(n*clamp(reveal)));
+    ctx.save(); ctx.globalAlpha=alpha; ctx.beginPath();
+    let peak=1e-12; for(let i=0;i<nShow;i++) peak=Math.max(peak,Math.abs(arr[i]));
+    for(let i=0;i<nShow;i++){
+      const x=x0+(i/(n-1))*w, y=y0-(arr[i]/peak)*(h*.46);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle=color; ctx.lineWidth=lw; ctx.lineJoin='round'; ctx.stroke(); ctx.restore();
+  }
+
+  const api={ctx,get W(){return W},get H(){return H},clamp,lerp,ease,seg,card,label,arrow,drawSignal,roundRect,
+    U:'#0072B2',UL:'#E3F0F8',D:'#D55E00',DL:'#FCE4D6',N:'#1F4E79',C:'#CC79A7',CL:'#F5E6EF',G:'#E69F00',MUTE:'#6B6B6B',INK:'#111',
+    S: window.REAL_SIG||{}};
+
+  let sceneIdx=0,tLocal=0,playing=true,last=performance.now();
+  const badge=document.getElementById('badge');
+  const title=document.getElementById('title');
+  const body=document.getElementById('body');
+  const prog=document.getElementById('prog');
+  const guideList=document.getElementById('guideList');
+
+  function buildGuide(){
+    guideList.innerHTML='';
+    scenes.forEach((s,i)=>{
+      const li=document.createElement('li');
+      li.innerHTML=`<span class="t">${i+1}. ${s.short}</span>`;
+      li.onclick=()=>{playing=false; go(i); document.getElementById('play').textContent='Play'};
+      guideList.appendChild(li);
+    });
+  }
+  function syncGuide(){ [...guideList.children].forEach((li,i)=>li.classList.toggle('active',i===sceneIdx)); }
+  function setHud(){
+    const s=scenes[sceneIdx];
+    badge.textContent=`Step ${sceneIdx+1} / ${scenes.length}`;
+    title.textContent=s.title;
+    body.innerHTML=`<span class="see"><strong>What you see:</strong> ${s.see}</span><span class="mean"><strong>Why it matters:</strong> ${s.mean}</span>`;
+    let done=0; for(let i=0;i<sceneIdx;i++) done+=scenes[i].dur; done+=tLocal;
+    const total=scenes.reduce((a,sc)=>a+sc.dur,0);
+    prog.style.width=(100*done/total)+'%';
+    syncGuide();
+  }
+  function go(i){ sceneIdx=Math.max(0,Math.min(scenes.length-1,i)); tLocal=0; setHud(); }
+  function frame(now){
+    const dt=Math.min(.05,(now-last)/1000); last=now;
+    if(playing){
+      tLocal+=dt;
+      if(tLocal>=scenes[sceneIdx].dur){
+        if(sceneIdx<scenes.length-1){sceneIdx++; tLocal=0;}
+        else {tLocal=scenes[sceneIdx].dur; playing=false; document.getElementById('play').textContent='Replay';}
+      }
+      setHud();
+    }
+    ctx.clearRect(0,0,W,H);
+    const s=scenes[sceneIdx];
+    s.draw(api, clamp(tLocal/s.dur));
+    requestAnimationFrame(frame);
+  }
+  document.getElementById('play').onclick=()=>{
+    if(sceneIdx===scenes.length-1 && tLocal>=scenes[sceneIdx].dur-0.05) go(0);
+    playing=true; document.getElementById('play').textContent='Playing…';
+  };
+  document.getElementById('pause').onclick=()=>{playing=false; document.getElementById('play').textContent='Play'};
+  document.getElementById('back').onclick=()=>{playing=false; go(sceneIdx-1)};
+  document.getElementById('next').onclick=()=>{playing=false; go(sceneIdx+1)};
+  document.getElementById('restart').onclick=()=>{go(0); playing=true; document.getElementById('play').textContent='Playing…'};
+  buildGuide(); setHud(); document.getElementById('play').textContent='Playing…'; requestAnimationFrame(frame);
+}
+
+
+const SCENES = [
+  {
+    dur: 4.2, short: "What Fig. 3 shows",
+    title: "Step 1 — The paper’s workflow in three blocks",
+    see: "Three stages appear in order: Data, Model, Evaluation. This matches Section 3.1 and the caption of Figure 3.",
+    mean: "Figure 3 is only an overview map. It does not add new methods; it shows where Sections 3.2–3.6 sit in the study.",
+    draw(A,t){
+      const {ctx,W,H,card,label,arrow,N,MUTE,seg}=A;
+      const y=H*0.38, w=W*0.26, h=110, gap=W*0.05;
+      const xs=[W*0.08, W*0.08+w+gap, W*0.08+2*(w+gap)];
+      const names=["1. Data","2. Model","3. Evaluation"];
+      const subs=["§3.2–3.3","§3.4–3.5","§3.6"];
+      const a=seg(t,0.05,0.85);
+      for(let i=0;i<3;i++){
+        const on=a>i/3;
+        ctx.globalAlpha=on?1:0.25;
+        card(xs[i],y-55,w,h,"#fff",N,2);
+        label(names[i], xs[i]+w/2, y-30, N, 16, "center", true);
+        label(subs[i], xs[i]+w/2, y-8, MUTE, 12);
+        if(i<2) arrow(xs[i]+w+4, y, xs[i+1]-4, y, N, 1.8);
+      }
+      ctx.globalAlpha=1;
+      label("IASC–ASCE Phase I  →  CycleGAN translation  →  signal metrics + modal check", W/2, y+75, MUTE, 12);
+    }
+  },
+  {
+    dur: 5.0, short: "Data",
+    title: "Step 2 — Data: benchmark simulation and segments",
+    see: "A 12-DOF IASC–ASCE frame leads to Cases × damage states × seeds, then 40 s records cut into 1 s segments of shape 16×1000.",
+    mean: "As in the article: all responses are simulated on the Phase I 12-DOF model; each record has 16 channels; segments feed the network.",
+    draw(A,t){
+      const {ctx,W,H,card,label,drawSignal,arrow,U,N,MUTE,S,seg}=A;
+      const y=H*0.36;
+      card(40,y-70,150,120,"#fff",N,1.5);
+      label("IASC–ASCE", 115, y-48, N, 13, "center", true);
+      label("12-DOF · 16 sensors", 115, y-28, MUTE, 11);
+      label("Cases 1, 3, 4", 115, y-8, MUTE, 11);
+      label("7 states × 20 seeds", 115, y+12, MUTE, 11);
+      arrow(200,y, 260,y, N, 1.6);
+      card(260,y-70,170,120,"#fff",U,1.5);
+      label("40 s record", 345, y-48, U, 13, "center", true);
+      drawSignal(S.case1_h_long||S.case1_h, 275, y+10, 140, 70, U, 1.0, 1, seg(t,0.1,0.9));
+      arrow(440,y, 500,y, N, 1.6);
+      card(500,y-70,170,120,"#fff",N,1.5);
+      label("1 s segment", 585, y-48, N, 13, "center", true);
+      label("16 × 1000", 585, y-28, MUTE, 12);
+      drawSignal(S.real_healthy||S.case1_h, 515, y+15, 140, 65, U, 1.0, 1, seg(t,0.35,1));
+    }
+  },
+  {
+    dur: 5.0, short: "Model",
+    title: "Step 3 — Model: CycleGAN maps U ↔ D",
+    see: "Domain U (healthy) and domain D (damaged) with generators G: U→D and F: D→U. This is the CycleGAN block of Figure 3 / Sections 3.4–3.5.",
+    mean: "The model translates multi-sensor accelerations between undamaged and damaged domains in both directions. Training details are in Figure 8 and Table 4.",
+    draw(A,t){
+      const {W,H,card,label,arrow,drawSignal,U,UL,D,DL,MUTE,S,seg}=A;
+      const y=H*0.38, a=seg(t,0.1,0.9);
+      card(60,y-70,200,140,UL,U,2);
+      label("Domain U · healthy", 160, y-48, U, 14, "center", true);
+      drawSignal(S.real_healthy||S.case1_h, 80, y+20, 160, 70, U, 1.15, 1, a);
+      card(W-260,y-70,200,140,DL,D,2);
+      label("Domain D · damaged", W-160, y-48, D, 14, "center", true);
+      drawSignal(S.real_damaged||S.case1_d, W-240, y+20, 160, 70, D, 1.15, 1, a);
+      arrow(270,y-15, W-270,y-15, D, 2.2);
+      label("G: U → D", W/2, y-30, D, 14, "center", true);
+      arrow(W-270,y+20, 270,y+20, U, 1.8);
+      label("F: D → U", W/2, y+36, U, 13, "center", true);
+    }
+  },
+  {
+    dur: 5.2, short: "Evaluation",
+    title: "Step 4 — Evaluation on held-out test seeds",
+    see: "Three checks from Section 3.6: waveform/statistics (MAE, MMSC, FID), spectral behaviour, and a modal/FDD frequency check.",
+    mean: "Testing uses only seeds 14–19 (never seen in training). Figure 3 ends here; the numerical results appear later in the Results section.",
+    draw(A,t){
+      const {W,H,card,label,N,MUTE,U,D,G,seg}=A;
+      const y=H*0.36, w=W*0.28, xs=[W*0.06, W*0.36, W*0.66];
+      const titles=["Signal metrics","Spectrum","Modal check"];
+      const bodies=["MAE · MMSC · FID","PSD / coherence","FDD natural frequencies"];
+      const cols=[N,G,U];
+      const a=seg(t,0.05,0.9);
+      for(let i=0;i<3;i++){
+        const on=a>(i*0.25);
+        card(xs[i], y-60, w, 130, "#fff", cols[i], on?2:1);
+        label(titles[i], xs[i]+w/2, y-35, cols[i], 14, "center", true);
+        label(bodies[i], xs[i]+w/2, y-10, MUTE, 12);
+        label("test seeds 14–19", xs[i]+w/2, y+20, MUTE, 11);
+      }
+      label("Held-out excitations only — same rule as Figure 6", W/2, y+90, MUTE, 12);
+    }
+  }
+];
+
+if(!window.REAL_SIG){
+  document.getElementById('title').textContent='Could not load signals.js';
+} else {
+  boot(SCENES);
+}
+</script>
+</body>
+</html>

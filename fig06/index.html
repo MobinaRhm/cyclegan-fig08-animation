@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Fig. 6 — Record-level seed hold-out</title>
+<style>
+:root {
+  --U:#0072B2; --UL:#E3F0F8; --D:#D55E00; --DL:#FCE4D6;
+  --N:#1F4E79; --C:#CC79A7; --CL:#F5E6EF; --G:#E69F00; --GL:#FFF2CC;
+  --MUTE:#6B6B6B; --INK:#111; --LINE:#C9CED6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--INK);font-family:"Times New Roman",Times,serif}
+.page{max-width:1040px;margin:0 auto;padding:14px}
+h1{margin:0 0 4px;font-size:1.15rem;color:var(--N)}
+.sub{margin:0 0 12px;color:var(--MUTE);font-size:.8rem;font-style:italic}
+.layout{display:grid;grid-template-columns:1fr 240px;gap:12px;align-items:start}
+@media(max-width:860px){.layout{grid-template-columns:1fr}}
+.theater{position:relative;border:1px solid var(--LINE);border-radius:12px;background:#fff;overflow:hidden;aspect-ratio:16/10;min-height:400px}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(255,255,255,.98) 24%);padding:34px 14px 10px;pointer-events:none}
+.badge{display:inline-block;background:var(--N);color:#fff;font-size:.7rem;border-radius:999px;padding:2px 9px;margin-right:8px}
+.title{font-size:.98rem;font-weight:700;color:var(--N);margin:4px 0}
+.body{font-size:.82rem;line-height:1.4}
+.see,.mean{display:block;margin-top:3px}
+.see strong,.mean strong{color:var(--N)}
+.bar{position:absolute;left:12px;right:12px;top:10px;height:4px;background:#ececec;border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--N)}
+.guide{border:1px solid var(--LINE);border-radius:12px;padding:10px;background:#fff}
+.guide h2{margin:0 0 8px;font-size:.86rem;color:var(--N)}
+.guide ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.guide li{border:1px solid var(--LINE);border-radius:8px;padding:7px 8px;cursor:pointer;font-size:.72rem;color:var(--MUTE);line-height:1.25}
+.guide li .t{display:block;font-weight:700;color:var(--INK);margin-bottom:2px}
+.guide li.active{border-color:var(--N);background:#E8EEF5;color:var(--INK)}
+.guide .howto{margin:10px 2px 0;font-size:.7rem;color:var(--MUTE);font-style:italic;line-height:1.35}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+button{font-family:inherit;font-size:.84rem;cursor:pointer;border:1.2px solid var(--N);background:#fff;color:var(--N);border-radius:7px;padding:7px 12px}
+button.main{background:var(--N);color:#fff}
+.src{margin-top:10px;font-size:.7rem;color:var(--MUTE);line-height:1.4}
+</style>
+<script src="signals.js"></script>
+</head>
+<body>
+<div class="page">
+  <h1>Figure 6 — Record-level seed hold-out</h1>
+  <p class="sub">Animated companion to Figure 6 · matches the data-split paragraph</p>
+  <div class="layout">
+    <div>
+      <div class="theater" id="theater">
+        <div class="bar"><i id="prog"></i></div>
+        <canvas id="cv"></canvas>
+        <div class="hud">
+          <span class="badge" id="badge">Step 1</span>
+          <div class="title" id="title">…</div>
+          <div class="body" id="body">…</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="main" id="play">Play</button>
+        <button id="pause">Pause</button>
+        <button id="back">◀ Prev</button>
+        <button id="next">Next ▶</button>
+        <button id="restart">Restart</button>
+      </div>
+    </div>
+    <aside class="guide">
+      <h2>Step-by-step guide</h2>
+      <ol id="guideList"></ol>
+      <p class="howto">Click a step to jump. Read “What you see” and “Why it matters” under the animation.</p>
+    </aside>
+  </div>
+  <p class="src">Checked against the article: split by record (seeds 0–9 / 10–13 / 14–19); 40×1 s windows; same seed = identical excitation; 2400/960/1440 pairs.</p>
+</div>
+<script>
+
+function boot(scenes){
+  const theater=document.getElementById('theater');
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  let W=0,H=0,dpr=1;
+  function resize(){
+    const r=theater.getBoundingClientRect();
+    dpr=Math.min(devicePixelRatio||1,2);
+    W=r.width; H=r.height;
+    cv.width=Math.floor(W*dpr); cv.height=Math.floor(H*dpr);
+    cv.style.width=W+'px'; cv.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  addEventListener('resize',resize); resize();
+
+  const clamp=(t,a=0,b=1)=>Math.max(a,Math.min(b,t));
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const ease=t=>{t=clamp(t);return t*t*(3-2*t)};
+  const seg=(t,a,b)=>ease(clamp((t-a)/Math.max(1e-9,b-a)));
+
+  function roundRect(x,y,w,h,r){
+    const rr=Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+  function card(x,y,w,h,fill,stroke,lw=1.5){
+    roundRect(x,y,w,h,9); ctx.fillStyle=fill; ctx.fill();
+    ctx.strokeStyle=stroke; ctx.lineWidth=lw; ctx.stroke();
+  }
+  function label(text,x,y,color='#111',size=13,align='center',bold=false){
+    ctx.fillStyle=color;
+    ctx.font=`${bold?'700 ':''}${size}px "Times New Roman",Times,serif`;
+    ctx.textAlign=align; ctx.textBaseline='middle'; ctx.fillText(text,x,y);
+  }
+  function arrow(x1,y1,x2,y2,color,lw=2,head=8){
+    const ang=Math.atan2(y2-y1,x2-x1);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-head*Math.cos(ang-.4),y2-head*Math.sin(ang-.4));
+    ctx.lineTo(x2-head*Math.cos(ang+.4),y2-head*Math.sin(ang+.4));
+    ctx.closePath(); ctx.fill();
+  }
+  function drawSignal(arr,x0,y0,w,h,color,lw=1.1,alpha=1,reveal=1){
+    if(!arr||!arr.length) return;
+    const n=arr.length, nShow=Math.max(2,Math.floor(n*clamp(reveal)));
+    ctx.save(); ctx.globalAlpha=alpha; ctx.beginPath();
+    let peak=1e-12; for(let i=0;i<nShow;i++) peak=Math.max(peak,Math.abs(arr[i]));
+    for(let i=0;i<nShow;i++){
+      const x=x0+(i/(n-1))*w, y=y0-(arr[i]/peak)*(h*.46);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle=color; ctx.lineWidth=lw; ctx.lineJoin='round'; ctx.stroke(); ctx.restore();
+  }
+
+  const api={ctx,get W(){return W},get H(){return H},clamp,lerp,ease,seg,card,label,arrow,drawSignal,roundRect,
+    U:'#0072B2',UL:'#E3F0F8',D:'#D55E00',DL:'#FCE4D6',N:'#1F4E79',C:'#CC79A7',CL:'#F5E6EF',G:'#E69F00',MUTE:'#6B6B6B',INK:'#111',
+    S: window.REAL_SIG||{}};
+
+  let sceneIdx=0,tLocal=0,playing=true,last=performance.now();
+  const badge=document.getElementById('badge');
+  const title=document.getElementById('title');
+  const body=document.getElementById('body');
+  const prog=document.getElementById('prog');
+  const guideList=document.getElementById('guideList');
+
+  function buildGuide(){
+    guideList.innerHTML='';
+    scenes.forEach((s,i)=>{
+      const li=document.createElement('li');
+      li.innerHTML=`<span class="t">${i+1}. ${s.short}</span>`;
+      li.onclick=()=>{playing=false; go(i); document.getElementById('play').textContent='Play'};
+      guideList.appendChild(li);
+    });
+  }
+  function syncGuide(){ [...guideList.children].forEach((li,i)=>li.classList.toggle('active',i===sceneIdx)); }
+  function setHud(){
+    const s=scenes[sceneIdx];
+    badge.textContent=`Step ${sceneIdx+1} / ${scenes.length}`;
+    title.textContent=s.title;
+    body.innerHTML=`<span class="see"><strong>What you see:</strong> ${s.see}</span><span class="mean"><strong>Why it matters:</strong> ${s.mean}</span>`;
+    let done=0; for(let i=0;i<sceneIdx;i++) done+=scenes[i].dur; done+=tLocal;
+    const total=scenes.reduce((a,sc)=>a+sc.dur,0);
+    prog.style.width=(100*done/total)+'%';
+    syncGuide();
+  }
+  function go(i){ sceneIdx=Math.max(0,Math.min(scenes.length-1,i)); tLocal=0; setHud(); }
+  function frame(now){
+    const dt=Math.min(.05,(now-last)/1000); last=now;
+    if(playing){
+      tLocal+=dt;
+      if(tLocal>=scenes[sceneIdx].dur){
+        if(sceneIdx<scenes.length-1){sceneIdx++; tLocal=0;}
+        else {tLocal=scenes[sceneIdx].dur; playing=false; document.getElementById('play').textContent='Replay';}
+      }
+      setHud();
+    }
+    ctx.clearRect(0,0,W,H);
+    const s=scenes[sceneIdx];
+    s.draw(api, clamp(tLocal/s.dur));
+    requestAnimationFrame(frame);
+  }
+  document.getElementById('play').onclick=()=>{
+    if(sceneIdx===scenes.length-1 && tLocal>=scenes[sceneIdx].dur-0.05) go(0);
+    playing=true; document.getElementById('play').textContent='Playing…';
+  };
+  document.getElementById('pause').onclick=()=>{playing=false; document.getElementById('play').textContent='Play'};
+  document.getElementById('back').onclick=()=>{playing=false; go(sceneIdx-1)};
+  document.getElementById('next').onclick=()=>{playing=false; go(sceneIdx+1)};
+  document.getElementById('restart').onclick=()=>{go(0); playing=true; document.getElementById('play').textContent='Playing…'};
+  buildGuide(); setHud(); document.getElementById('play').textContent='Playing…'; requestAnimationFrame(frame);
+}
+
+
+const SCENES = [
+  {
+    dur: 4.5, short: "Split by record",
+    title: "Step 1 — Hold-out is by excitation seed, not by segment",
+    see: "Twenty seeds (0–19) are coloured into train (0–9), validation (10–13) and test (14–19).",
+    mean: "The article states the split is by record. Every test segment comes from an excitation history the model has never seen.",
+    draw(A,t){
+      const {ctx,W,H,card,label,N,U,D,G,C,MUTE,seg}=A;
+      const y=H*0.42, a=seg(t,0.1,0.95);
+      label("excitation seed (independent 40 s record)", W/2, y-80, MUTE, 12);
+      for(let s=0;s<20;s++){
+        const col = s<10?U : (s<14?G:C);
+        const x=W*0.08 + s*((W*0.84)/20);
+        ctx.globalAlpha = a>s/20 ? 1 : 0.2;
+        card(x, y-30, (W*0.84)/20-3, 60, col, col, 1);
+        if(s===0||s===9||s===10||s===13||s===14||s===19) label(String(s), x+8, y+45, MUTE, 10);
+      }
+      ctx.globalAlpha=1;
+      label("train 0–9", W*0.22, y+70, U, 12, "center", true);
+      label("val 10–13", W*0.50, y+70, G, 12, "center", true);
+      label("test 14–19", W*0.75, y+70, C, 12, "center", true);
+    }
+  },
+  {
+    dur: 5.0, short: "From 40 s to 1 s",
+    title: "Step 2 — Each 40 s record → forty 1 s windows (16×1000)",
+    see: "A long record is cut into non-overlapping 1 s segments. One sample uses the same seed and the same window index k.",
+    mean: "As in the paper: 40 non-overlapping windows; shape 16×1000 at 1 kHz. This is segmentation, not the train/test split.",
+    draw(A,t){
+      const {W,H,card,label,drawSignal,arrow,U,N,MUTE,S,seg}=A;
+      const y=H*0.38;
+      card(40,y-50,320,100,"#fff",U,1.5);
+      label("one 40 s record · same seed s", 200, y-32, U, 12, "center", true);
+      drawSignal(S.case1_h_long||S.case1_h, 55, y+20, 290, 55, U, 0.9, 1, seg(t,0.05,0.7));
+      const x0=55+21*(290/40);
+      card(x0, y-5, 290/40, 55, "rgba(0,0,0,0)", N, 1.8);
+      label("window k", x0+20, y-18, MUTE, 10);
+      arrow(380,y, 450,y, N, 1.6);
+      card(460,y-55, 200,110,"#fff",N,1.5);
+      label("segment 16×1000", 560, y-35, N, 12, "center", true);
+      drawSignal(S.real_healthy||S.case1_h, 480, y+15, 160, 60, U, 1.05, 1, seg(t,0.4,1));
+    }
+  },
+  {
+    dur: 5.2, short: "Same seed = same force",
+    title: "Step 3 — Alignment: identical excitation force",
+    see: "Healthy ID 0 and damaged ID p share the same seed s and window k. Gold marks this loader alignment.",
+    mean: "Same seed means the same random excitation force. Each healthy window is paired with all six damage patterns P1–P6 for that seed and window.",
+    draw(A,t){
+      const {W,H,card,label,drawSignal,arrow,U,UL,D,DL,G,MUTE,S,seg}=A;
+      const y=H*0.36, a=seg(t,0.1,0.9);
+      card(50,y-70,220,130,UL,U,2);
+      label("u  ·  healthy ID 0", 160, y-48, U, 13, "center", true);
+      label("seed s · window k", 160, y-28, MUTE, 11);
+      drawSignal(S.real_healthy||S.case1_h, 70, y+20, 180, 70, U, 1.1, 1, a);
+      card(W-270,y-70,220,130,DL,D,2);
+      label("d  ·  damaged ID p", W-160, y-48, D, 13, "center", true);
+      label("same seed s · same k", W-160, y-28, MUTE, 11);
+      drawSignal(S.real_damaged||S.case1_d, W-250, y+20, 180, 70, D, 1.1, 1, a);
+      arrow(280,y, W-280,y, G, 2);
+      label("identical excitation force", W/2, y-20, G, 12, "center", true);
+      label("p = 1 … 6 (six patterns pooled in domain D)", W/2, y+85, MUTE, 12);
+    }
+  },
+  {
+    dur: 4.8, short: "Sample counts",
+    title: "Step 4 — Counts per case (Table / Fig. 6–7)",
+    see: "Training 2400, validation 960, test 1440 pairs per case: seeds × 40 windows × 6 patterns.",
+    mean: "Validation chooses the best epoch (lowest MAE in domain D). Test seeds stay unused until final reporting.",
+    draw(A,t){
+      const {W,H,card,label,U,G,C,MUTE,seg}=A;
+      const y=H*0.38, a=seg(t,0.1,0.95);
+      const items=[
+        [U,"Training","seeds 0–9","2400 pairs","gradient updates"],
+        [G,"Validation","seeds 10–13","960 pairs","best epoch = min MAE in D"],
+        [C,"Test","seeds 14–19","1440 pairs","never seen in training"]
+      ];
+      for(let i=0;i<3;i++){
+        const x=W*0.07+i*(W*0.3);
+        card(x, y-70, W*0.27, 150, "#fff", items[i][0], a>i/3?2:1);
+        label(items[i][1], x+W*0.135, y-45, items[i][0], 15, "center", true);
+        label(items[i][2], x+W*0.135, y-20, MUTE, 12);
+        label(items[i][3], x+W*0.135, y+10, items[i][0], 16, "center", true);
+        label(items[i][4], x+W*0.135, y+40, MUTE, 11);
+      }
+    }
+  }
+];
+
+if(!window.REAL_SIG){
+  document.getElementById('title').textContent='Could not load signals.js';
+} else {
+  boot(SCENES);
+}
+</script>
+</body>
+</html>

@@ -1,19 +1,25 @@
-﻿# CycleGAN Fig. 8 — Animated training flow
+﻿# CycleGAN method figure animations
 
-Interactive companion to **Figure 8** of the manuscript on CycleGAN translation of undamaged/damaged building accelerations (IASC–ASCE Phase I).
+Interactive companions to **Figures 3, 6, 8, 9 and 11** of the manuscript on CycleGAN translation of undamaged/damaged building accelerations (IASC–ASCE Phase I).
 
-## Open the animation
+## Open
 
-**https://mobinarhm.github.io/cyclegan-fig08-animation/fig08/**
-
-Or open `fig08/index.html` locally.
+| Figure | URL |
+|--------|-----|
+| Hub | https://mobinarhm.github.io/cyclegan-fig08-animation/ |
+| Fig. 3 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig03/ |
+| Fig. 6 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig06/ |
+| Fig. 8 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig08/ |
+| Fig. 9 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig09/ |
+| Fig. 11 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig11/ |
 
 ## Contents
 
-- Real acceleration traces from the study (Case 3 test batch, channel 14)
-- Step-by-step training flow aligned with Sections 3.4–3.5 and Table 4
+- Real acceleration traces from the study
+- Step-by-step scenes aligned with the article text (not decorative)
 - Same Okabe–Ito colours as the paper figures
+- Fig. 9 Step 4 and Fig. 11 Step 4 explicitly separate architecture (can be unpaired) from this study’s loader alignment (needed for STFT)
 
-## QR code
+## QR codes
 
-See `qr/fig08_animation_qr.png` in this repository (or in the paper figure package).
+PNG files in `qr/`.
