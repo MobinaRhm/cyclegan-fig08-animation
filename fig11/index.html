@@ -198,29 +198,30 @@ const SCENES = [
   {
     dur: 4.0, short: "Full L_G",
     title: "Step 1 — Generator objective (both directions)",
-    see: "L_G = L_adv + 10 L_cyc + 5 L_id + 10 L_freq. Colours match the four terms in Figure 11 / Table 4.",
-    mean: "One generator update uses all four terms together. Critics are trained separately with WGAN-GP (λ_gp=10).",
+    see: "Eq. (6): L_G = L_adv(G,C_D) + L_adv(F,C_U) + 10 L_cyc + 5 L_id + 10 L_freq. Four loss families in Figure 11; weights from Table 4.",
+    mean: "One generator update uses both adversarial directions plus cycle, identity and STFT. Critics are trained separately with WGAN-GP (λ_gp=10 on the critic loss, not inside L_G).",
     draw(A,t){
       const {W,H,card,label,C,U,N,G,MUTE,seg}=A;
-      const y=H*0.4;
-      card(40,y-50,W-80,100,"#fff",N,1.5);
-      label("L_G = L_adv + 10 L_cyc + 5 L_id + 10 L_freq", W/2, y-10, N, 16, "center", true);
-      label("λ_cyc=10 · λ_id=5 · λ_freq=10 · λ_gp=10 (Table 4)", W/2, y+20, MUTE, 12);
+      const y=H*0.38;
+      card(40,y-55,W-80,110,"#fff",N,1.5);
+      label("L_G = L_adv(G,C_D) + L_adv(F,C_U)", W/2, y-28, N, 14, "center", true);
+      label("+ 10 L_cyc + 5 L_id + 10 L_freq", W/2, y-5, N, 14, "center", true);
+      label("λ_cyc=10 · λ_id=5 · λ_freq=10 · λ_gp=10 (Table 4; λ_gp is on critics)", W/2, y+22, MUTE, 11);
       const cols=[C,U,N,G], names=["adv","cyc","id","freq"];
       for(let i=0;i<4;i++){
         const x=W*0.15+i*W*0.18;
-        card(x, y+60, 70, 28, cols[i], cols[i], 1);
-        label(names[i], x+35, y+74, "#fff", 12, "center", true);
+        card(x, y+55, 70, 28, cols[i], cols[i], 1);
+        label(names[i], x+35, y+69, "#fff", 12, "center", true);
       }
     }
   },
   {
     dur: 5.0, short: "Adversarial",
     title: "Step 2 — Adversarial term (WGAN-GP)",
-    see: "Critics score real vs generated signals. Gradient penalty keeps the critic 1-Lipschitz (λ_gp=10). Score bars are schematic.",
-    mean: "Critics maximise the Wasserstein gap; generators minimise it. This is separate from the STFT term.",
+    see: "Example for U→D: real d and G(u) go to critic C_D (Eq. 1). The same idea holds for F and C_U. Gradient penalty λ_gp=10 keeps the critic ~1-Lipschitz (Eq. 2). Scores are schematic.",
+    mean: "Critics maximise the Wasserstein gap; generators minimise it. Adversarial training is separate from the STFT term.",
     draw(A,t){
-      const {W,H,card,label,drawSignal,C,CL,D,DL,MUTE,S,seg,lerp}=A;
+      const {W,H,card,label,drawSignal,C,CL,D,DL,MUTE,S,seg}=A;
       const y=H*0.36;
       card(60,y-60,180,120,DL,D,1.5);
       label("real d", 150, y-40, D, 13, "center", true);
@@ -231,37 +232,37 @@ const SCENES = [
       card(520,y-40,120,80,CL,C,2);
       label("C_D", 580, y, C, 18, "center", true);
       label("WGAN-GP", 580, y+25, MUTE, 11);
-      // meters
       card(80,y+90,150,34,"#fff","#ccc",1);
-      label("score real (schematic)", 155, y+100, MUTE, 10);
+      label("score real (schematic)", 155, y+107, MUTE, 10);
       card(300,y+90,150,34,"#fff","#ccc",1);
-      label("score G(u) rises in training", 375, y+100, MUTE, 10);
+      label("score G(u) (schematic)", 375, y+107, MUTE, 10);
+      label("same idea for F and C_U in the other direction", W/2, y+145, MUTE, 11);
     }
   },
   {
     dur: 4.8, short: "Cycle + identity",
     title: "Step 3 — Cycle consistency and identity",
-    see: "Cycle: F(G(u))≈u and G(F(d))≈d (λ_cyc=10). Identity: F(u)≈u and G(d)≈d (λ_id=5) when the input is already in the target domain.",
-    mean: "Cycle couples G and F. Identity keeps amplitude/shape when no translation is required. Exact Eqs. are in the article.",
+    see: "Cycle Eq. (3): F(G(u))≈u and G(F(d))≈d (λ_cyc=10). Identity Eq. (4): G(d)≈d and F(u)≈u (λ_id=5) when the input is already in that generator’s target domain.",
+    mean: "Cycle couples G and F. Identity preserves amplitude/shape when no translation is needed. Directions match G: U→D and F: D→U (do not swap).",
     draw(A,t){
       const {W,H,card,label,U,D,N,MUTE}=A;
       const y=H*0.38;
       card(40,y-70,W*0.45,140,"#fff",U,1.8);
-      label("Cycle  ·  λ_cyc = 10", W*0.25, y-45, U, 14, "center", true);
+      label("Cycle  ·  λ_cyc = 10 · Eq. (3)", W*0.25, y-45, U, 13, "center", true);
       label("F(G(u)) ≈ u", W*0.25, y-10, N, 15, "center", true);
       label("G(F(d)) ≈ d", W*0.25, y+20, N, 15, "center", true);
       card(W*0.52,y-70,W*0.43,140,"#fff",N,1.8);
-      label("Identity  ·  λ_id = 5", W*0.735, y-45, N, 14, "center", true);
-      label("F(u) ≈ u", W*0.735, y-10, U, 15, "center", true);
-      label("G(d) ≈ d", W*0.735, y+20, D, 15, "center", true);
-      label("already in target domain → leave unchanged", W*0.735, y+50, MUTE, 11);
+      label("Identity  ·  λ_id = 5 · Eq. (4)", W*0.735, y-45, N, 13, "center", true);
+      label("G(d) ≈ d   (G already in D)", W*0.735, y-10, D, 13, "center", true);
+      label("F(u) ≈ u   (F already in U)", W*0.735, y+20, U, 13, "center", true);
+      label("leave unchanged if already in target domain", W*0.735, y+50, MUTE, 11);
     }
   },
   {
     dur: 5.2, short: "STFT loss",
     title: "Step 4 — STFT frequency loss (separate term)",
-    see: "L_freq matches STFT magnitude and phase of the generated segment to the aligned real target (λ_freq=10). Hann window, n_fft=512, hop=128.",
-    mean: "This term needs the loader alignment (same seed and window). It is not part of the critic. Same statement as Figures 8–9 and Table 4.",
+    see: "Eq. (5): L_freq matches STFT magnitude and phase of the generated segment to the aligned real target (λ_freq=10). Hann window, n_fft=512, hop=128 (Table 4).",
+    mean: "Needs the loader alignment (same seed and window). Not part of the critic. Same statement as §3.3–3.5 and Figures 8–9.",
     draw(A,t){
       const {W,H,card,label,drawSignal,arrow,D,DL,G,MUTE,S,seg}=A;
       const y=H*0.36, a=seg(t,0.1,0.9);

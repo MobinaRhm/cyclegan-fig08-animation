@@ -260,16 +260,16 @@ const SCENES = [
   },
   {
     dur: 4.8, short: "Sample counts",
-    title: "Step 4 — Counts per case (Table / Fig. 6–7)",
-    see: "Training 2400, validation 960, test 1440 pairs per case: seeds × 40 windows × 6 patterns.",
-    mean: "Validation chooses the best epoch (lowest MAE in domain D). Test seeds stay unused until final reporting.",
+    title: "Step 4 — Counts per case (§3.3 / Fig. 7 / Table 4)",
+    see: "Per case: 10×40×6 = 2400 train, 4×40×6 = 960 val, 6×40×6 = 1440 test samples (each sample = one healthy–damaged pair).",
+    mean: "Best epoch = lowest validation MAE in the damaged domain (Table 4). Test seeds 14–19 are never used in training.",
     draw(A,t){
       const {W,H,card,label,U,G,C,MUTE,seg}=A;
       const y=H*0.38, a=seg(t,0.1,0.95);
       const items=[
-        [U,"Training","seeds 0–9","2400 pairs","gradient updates"],
-        [G,"Validation","seeds 10–13","960 pairs","best epoch = min MAE in D"],
-        [C,"Test","seeds 14–19","1440 pairs","never seen in training"]
+        [U,"Training","10×40×6","2400 samples","seeds 0–9"],
+        [G,"Validation","4×40×6","960 samples","best = min MAE in D"],
+        [C,"Test","6×40×6","1440 samples","seeds 14–19 held out"]
       ];
       for(let i=0;i<3;i++){
         const x=W*0.07+i*(W*0.3);

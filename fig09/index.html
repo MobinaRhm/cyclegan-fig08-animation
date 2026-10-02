@@ -258,14 +258,14 @@ const SCENES = [
       card(500,y-50,150,100,UL,U,1.5);
       label("F(G(u)) ≈ u", 575, y-30, U, 12, "center", true);
       drawSignal(S.real_healthy||S.case1_h, 515, y+20, 120, 50, U, 1.0, p>0.55?1:0.2);
-      label("cycle consistency (article Eq. for L_cyc)", W/2, y+75, N, 12);
+      label("cycle consistency · Eq. (3) · L_cyc", W/2, y+75, N, 12);
     }
   },
   {
     dur: 5.5, short: "This study’s loader",
     title: "Step 4 — Important: what THIS study still aligns",
-    see: "Gold links show the loader pairing: one healthy window with the same seed and time window of all six patterns. Only the STFT loss needs this alignment.",
-    mean: "Do not confuse architecture with protocol. CycleGAN can train unpaired; here the loader still aligns pairs for STFT (and for MAE/MMSC reporting). Adversarial, cycle and identity would work unpaired.",
+    see: "Gold links: the loader pairs one healthy window with the same seed and time window of each damage pattern (P1–P6 pooled in D). Article: a paired-data test of an unpaired-capable architecture.",
+    mean: "Do not confuse architecture with protocol. Classic CycleGAN does not need pairs for adversarial / cycle / identity. This study’s loader still aligns by seed and time; the STFT loss uses that alignment (§3.3–3.5).",
     draw(A,t){
       const {ctx,W,H,card,label,drawSignal,U,UL,D,DL,G,MUTE,S,seg}=A;
       const y=H*0.34, a=seg(t,0.1,0.95);
@@ -281,8 +281,8 @@ const SCENES = [
         ctx.setLineDash([]);
       }
       card(40,y+90,W-80,55,"#FFF2CC",G,1.4);
-      label("Loader alignment (this study): same seed + same window k → all P1–P6", W/2, y+110, G, 12);
-      label("STFT uses this alignment; adversarial / cycle / identity do not require it", W/2, y+130, MUTE, 11);
+      label("This study’s loader: same seed + same window k (paired protocol)", W/2, y+110, G, 12);
+      label("STFT needs alignment · adv / cycle / identity do not · not a fully unpaired field test", W/2, y+130, MUTE, 11);
     }
   }
 ];

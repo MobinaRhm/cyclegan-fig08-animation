@@ -266,13 +266,13 @@ const SCENES = [
   {
     dur: 5.2, short: "Evaluation",
     title: "Step 4 — Evaluation on held-out test seeds",
-    see: "Three checks from Section 3.6: waveform/statistics (MAE, MMSC, FID), spectral behaviour, and a modal/FDD frequency check.",
-    mean: "Testing uses only seeds 14–19 (never seen in training). Figure 3 ends here; the numerical results appear later in the Results section.",
+    see: "Three checks from Section 3.6: signal metrics (MAE, FID, MMSC), spectral PSD comparison, and the FDD modal check.",
+    mean: "Testing uses only seeds 14–19 (never seen in training). MMSC is the coherence metric among the signal scores; PSD plots are a separate spectral view. Numerical results come later.",
     draw(A,t){
-      const {W,H,card,label,N,MUTE,U,D,G,seg}=A;
+      const {W,H,card,label,N,MUTE,U,G,seg}=A;
       const y=H*0.36, w=W*0.28, xs=[W*0.06, W*0.36, W*0.66];
       const titles=["Signal metrics","Spectrum","Modal check"];
-      const bodies=["MAE · MMSC · FID","PSD / coherence","FDD natural frequencies"];
+      const bodies=["MAE · FID · MMSC","PSD comparison","FDD natural frequencies"];
       const cols=[N,G,U];
       const a=seg(t,0.05,0.9);
       for(let i=0;i<3;i++){
