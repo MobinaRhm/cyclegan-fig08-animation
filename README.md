@@ -6,12 +6,12 @@ Interactive companions to **Figures 3, 6, 8, 9 and 11** of the manuscript on Cyc
 
 | Figure | URL |
 |--------|-----|
-| Hub | https://mobinarhm.github.io/cyclegan-fig08-animation/ |
-| Fig. 3 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig03/ |
-| Fig. 6 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig06/ |
-| Fig. 8 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig08/ |
-| Fig. 9 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig09/ |
-| Fig. 11 | https://mobinarhm.github.io/cyclegan-fig08-animation/fig11/ |
+| Hub | https://mobinarhm.github.io/cyclegan-figure-animations/ |
+| Fig. 3 | https://mobinarhm.github.io/cyclegan-figure-animations/fig03/ |
+| Fig. 6 | https://mobinarhm.github.io/cyclegan-figure-animations/fig06/ |
+| Fig. 8 | https://mobinarhm.github.io/cyclegan-figure-animations/fig08/ |
+| Fig. 9 | https://mobinarhm.github.io/cyclegan-figure-animations/fig09/ |
+| Fig. 11 | https://mobinarhm.github.io/cyclegan-figure-animations/fig11/ |
 
 ## Contents
 
